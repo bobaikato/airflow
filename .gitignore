@@ -343,3 +343,8 @@ dev/registry/providers.json
 /.github/skills/setup-override-upstream
 /.github/skills/setup-shared-config-sync
 /.github/skills/list-steward-*
+
+# Ota local runtime artifacts
+.ota/state/*
+.ota/receipts/*
+.ota/proof/*

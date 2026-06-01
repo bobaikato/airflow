@@ -1,0 +1,136 @@
+version: 1
+metadata:
+  ota:
+    minimum_version: "1.6.18"
+project:
+  name: airflow
+  description: Airflow readiness slice covering Python dependency sync and baseline pytest execution
+execution:
+  default_context: host
+  contexts:
+    host:
+      backend: native
+    app:
+      backend: container
+      lifecycle: ephemeral
+      container:
+        image: python:3.12-bookworm
+        engines:
+          - docker
+          - podman
+      attachments:
+        isolated_paths:
+          - .venv
+          - .uv-cache
+toolchains:
+  python:
+    provider: uv
+    version: '3.12'
+tasks:
+  setup:
+    context: host
+    category: setup
+    description: Install and sync dependencies with uv.
+    run: python -m pip install --disable-pip-version-check -q uv && uv sync
+    execution:
+      default_mode: native
+      modes:
+        native:
+          context: host
+          run: python -m pip install --disable-pip-version-check -q uv && uv sync
+        container:
+          context: app
+          run: python -m pip install --disable-pip-version-check -q uv && uv sync
+    effects:
+      network: true
+      network_kind: dependency_hydration
+    notes: Install uv if needed, then sync dependencies.
+    internal: true
+  test:
+    context: host
+    category: test
+    description: Run the default Python test command.
+    run: python -m pip install --disable-pip-version-check -q uv && uv run pytest
+    execution:
+      default_mode: native
+      modes:
+        native:
+          context: host
+          run: python -m pip install --disable-pip-version-check -q uv && uv run pytest
+        container:
+          context: app
+          run: python -m pip install --disable-pip-version-check -q uv && uv run pytest
+    depends_on:
+      - setup
+    safe_for_agent: true
+    notes: Run pytest through uv-managed environment.
+  verify:
+    context: host
+    category: test
+    description: Aggregate baseline Airflow verification checks.
+    run: "true"
+    execution:
+      default_mode: native
+      modes:
+        native:
+          context: host
+          run: "true"
+        container:
+          context: app
+          run: "true"
+    depends_on:
+      - test
+    safe_for_agent: true
+    notes: Contract-level verification path for this Airflow slice.
+agent:
+  posture: readiness_strict
+  entrypoint: setup
+  default_task: verify
+  safe_tasks:
+  - test
+  - verify
+  verify_after_changes:
+  - verify
+  writable_paths:
+  - airflow-core
+  - airflow-ctl
+  - airflow-ctl-tests
+  - airflow-e2e-tests
+  - chart
+  - clients
+  - dev
+  - devel-common
+  - docker-stack-docs
+  - docker-tests
+  - docs
+  - java-sdk
+  - kubernetes-tests
+  - performance
+  - providers
+  - providers-summary-docs
+  - scripts
+  - shared
+  - task-sdk
+  - task-sdk-integration-tests
+  protected_paths:
+  - .github/workflows
+  - ota.yaml
+  - uv.lock
+  inferred_boundary:
+    reviewed: false
+    provenance:
+      writable_paths:
+      - init:common_source_roots
+      - init:stack_source_scan
+      protected_paths:
+      - init:contract_file_default
+      - init:stack_companion_control_files
+  bootstrap:
+    ota:
+      note: Only install ota if it is missing and installation is approved.
+      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.18 sh
+      powershell: $env:OTA_VERSION='v1.6.18'; irm https://dist.ota.run/install.ps1 | iex
+  notes: |
+    Use `ota tasks --safe --use` to inspect the approved agent task surface before execution.
+    Use `ota validate` before changes and `ota doctor` after edits.
+    Use `ota run verify` for the contract verification path.
