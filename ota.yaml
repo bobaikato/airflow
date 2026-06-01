@@ -31,16 +31,16 @@ tasks:
     context: host
     category: setup
     description: Install and sync dependencies with uv.
-    run: python -m pip install --disable-pip-version-check -q uv && uv sync
+    run: python -m pip install --disable-pip-version-check -q uv && uv sync --group dev
     execution:
       default_mode: native
       modes:
         native:
           context: host
-          run: python -m pip install --disable-pip-version-check -q uv && uv sync
+          run: python -m pip install --disable-pip-version-check -q uv && uv sync --group dev
         container:
           context: app
-          run: python -m pip install --disable-pip-version-check -q uv && uv sync
+          run: python -m pip install --disable-pip-version-check -q uv && uv sync --group dev
     effects:
       network: true
       network_kind: dependency_hydration
@@ -50,16 +50,16 @@ tasks:
     context: host
     category: test
     description: Run the default Python test command.
-    run: python -m pip install --disable-pip-version-check -q uv && uv run pytest
+    run: python -m pip install --disable-pip-version-check -q uv && uv run --group dev pytest --color=yes -n auto
     execution:
       default_mode: native
       modes:
         native:
           context: host
-          run: python -m pip install --disable-pip-version-check -q uv && uv run pytest
+          run: python -m pip install --disable-pip-version-check -q uv && uv run --group dev pytest --color=yes -n auto
         container:
           context: app
-          run: python -m pip install --disable-pip-version-check -q uv && uv run pytest
+          run: python -m pip install --disable-pip-version-check -q uv && uv run --group dev pytest --color=yes -n auto
     depends_on:
       - setup
     safe_for_agent: true
