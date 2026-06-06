@@ -2,13 +2,9 @@ version: 1
 metadata:
   ota:
     minimum_version: "1.6.19"
-# Pressure-test note (local branch):
-# - Remove `setup` and the `uv run`-backed verification path before an upstream PR unless the
-#   widened uv-managed environment lane is fully proven in matrix and we want to claim more than
-#   parser-level source compilation.
 project:
   name: airflow
-  description: Airflow readiness slice covering uv-managed Python environment hydration and source compilation checks
+  description: Airflow readiness slice covering Python runtime/tooling sanity and source compilation checks
 execution:
   default_context: host
   contexts:
@@ -20,7 +16,7 @@ execution:
         - x64
       lifecycle: ephemeral
       container:
-        image: ghcr.io/apache/airflow/main/ci/python3.10
+        image: python:3.12-bookworm
         engines:
           - docker
           - podman
@@ -31,60 +27,45 @@ execution:
 toolchains:
   python:
     provider: uv
-    version: '3.10'
-    package_managers:
-      uv: '>=0.11.8'
+    version: '3.12'
 tasks:
   setup:
     context: host
     category: setup
-    description: Sync the Airflow development environment with uv.
-    run: uv sync
+    description: Ensure the pinned Python tooling is available.
+    run: python -m pip install --disable-pip-version-check -q uv
     execution:
       default_mode: native
       modes:
         native:
           context: host
-          run: uv sync
+          run: python -m pip install --disable-pip-version-check -q uv
         container:
           context: app
-          run: uv sync
-    requirements:
-      toolchains:
-        - python
+          run: python -m pip install --disable-pip-version-check -q uv
     effects:
-      writes:
-        - .venv
-        - .uv-cache
       network: true
       network_kind: dependency_hydration
-    notes: |
-      Sync the repo-managed uv environment using the development path documented in `INSTALL`.
-      This is a widened pressure-test lane intended to exercise toolchain fulfillment and
-      dependency-hydration behavior rather than just parser-level source checks.
+    notes: Install uv if needed for this contract slice.
     internal: true
   test:
     context: host
     category: test
-    description: Compile Airflow core sources inside the uv-managed environment.
-    run: uv run python -m compileall -q airflow-core/src/airflow
+    description: Compile Airflow core sources to validate parser/runtime compatibility.
+    run: python -m compileall -q airflow-core/src/airflow
     execution:
       default_mode: native
       modes:
         native:
           context: host
-          run: uv run python -m compileall -q airflow-core/src/airflow
+          run: python -m compileall -q airflow-core/src/airflow
         container:
           context: app
-          run: uv run python -m compileall -q airflow-core/src/airflow
+          run: python -m compileall -q airflow-core/src/airflow
     depends_on:
       - setup
-    requirements:
-      toolchains:
-        - python
-    notes: |
-      Validate source-level Python compatibility from the repo-managed uv environment rather than a
-      bare interpreter-only path.
+    safe_for_agent: true
+    notes: This slice validates source-level Python compatibility without full extras hydration.
   verify:
     context: host
     category: test
@@ -101,33 +82,28 @@ tasks:
           run: "true"
     depends_on:
       - test
-    requirements:
-      toolchains:
-        - python
     safe_for_agent: true
-    notes: |
-      Contract-level verification path for this Airflow slice.
-      Because this path now depends on uv environment hydration, it is a broader pressure lane than
-      the previous compile-only baseline.
+    notes: Contract-level verification path for this Airflow slice.
 workflows:
   default: verify
   verify:
     description: Canonical Airflow verification path for this contract slice.
+    setup:
+      task: setup
     run:
       task: verify
     notes: |
-      Use `ota up --workflow verify` to run the declared baseline verification path.
+      Use `ota up --workflow verify` to run the declared setup plus baseline verification sequence.
 agent:
   posture: readiness_strict
-  entrypoint: test
+  entrypoint: setup
   default_task: verify
   safe_tasks:
+  - test
   - verify
   verify_after_changes:
   - verify
   writable_paths:
-  - .uv-cache
-  - .venv
   - airflow-core
   - airflow-ctl
   - airflow-ctl-tests
@@ -172,5 +148,3 @@ agent:
     Use `ota tasks --safe --use` to inspect the approved agent task surface before execution.
     Use `ota validate` before changes and `ota doctor` after edits.
     Use `ota run verify` for the contract verification path.
-    This local pressure branch widens Airflow from bare compile checks to a uv-managed environment
-    path; remove that broader claim before PR unless the widened lane stays green in matrix.
