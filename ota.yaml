@@ -67,21 +67,11 @@ tasks:
     safe_for_agent: true
     notes: This slice validates source-level Python compatibility without full extras hydration.
   verify:
-    context: host
     category: test
     description: Aggregate baseline Airflow verification checks.
-    run: "true"
-    execution:
-      default_mode: native
-      modes:
-        native:
-          context: host
-          run: "true"
-        container:
-          context: app
-          run: "true"
-    depends_on:
-      - test
+    aggregate:
+      tasks:
+        - test
     safe_for_agent: true
     notes: Contract-level verification path for this Airflow slice.
 workflows:
