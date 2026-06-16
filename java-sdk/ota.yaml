@@ -1,0 +1,188 @@
+#
+#                █████
+#               ░░███
+#       ██████  ███████    ██████
+#      ███░░███░░░███░    ░░░░░███
+#     ░███ ░███  ░███      ███████
+#     ░███ ░███  ░███ ███ ███░░███
+#     ░░██████   ░░█████ ░░████████
+#      ░░░░░░     ░░░░░   ░░░░░░░░
+#
+#   Copyright (C) 2026 — 2026, Ota. All Rights Reserved.
+#
+#   DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+#
+#   Licensed under the Apache License, Version 2.0. See LICENSE for the full license text.
+#   You may not use this file except in compliance with that License.
+#   Unless required by applicable law or agreed to in writing, software distributed under the
+#   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+#   either express or implied. See the License for the specific language governing permissions
+#   and limitations under the License.
+#
+#   If you need additional information or have any questions, please email: os@ota.run
+
+version: 1
+project:
+  name: airflow-java-sdk
+  description: Wrapper-owned Gradle contract slice for the Airflow Java SDK, documentation, and example distribution build paths
+  type: library
+
+toolchains:
+  java:
+    version: ">=11"
+
+checks:
+  - name: task-sdk-schema-present
+    kind: file
+    severity: error
+    scope: workspace
+    path: ../task-sdk/src/airflow/sdk/execution_time/schema/schema.json
+    expect: file
+
+tasks:
+  setup:
+    description: Warm the wrapper-owned Gradle dependency graph
+    category: setup
+    prepare:
+      kind: dependency_hydration
+      medium: package_dependencies
+      source:
+        kind: gradle
+        cwd: .
+        wrapper: true
+    requirements:
+      toolchains:
+        - java
+    effects:
+      writes:
+        - .gradle
+      network: true
+      network_kind: dependency_hydration
+    safe_for_agent: true
+
+  build:
+    description: Build and test the multi-project Gradle workspace
+    category: build
+    command:
+      exe: ./gradlew
+      args:
+        - build
+    depends_on:
+      - setup
+    requirements:
+      toolchains:
+        - java
+      checks:
+        - task-sdk-schema-present
+    effects:
+      writes:
+        - .kotlin
+        - build
+        - example/build
+        - sdk/build
+    safe_for_agent: true
+
+  docs:
+    description: Generate the SDK API documentation through Dokka
+    category: build
+    command:
+      exe: ./gradlew
+      args:
+        - sdk:dokkaGenerate
+    depends_on:
+      - setup
+    requirements:
+      toolchains:
+        - java
+      checks:
+        - task-sdk-schema-present
+    effects:
+      writes:
+        - sdk/build
+    safe_for_agent: true
+
+  example:install:
+    description: Package the bundled example distribution and its dependencies
+    category: build
+    command:
+      exe: ./gradlew
+      args:
+        - :example:installDist
+    depends_on:
+      - setup
+    requirements:
+      toolchains:
+        - java
+      checks:
+        - task-sdk-schema-present
+    effects:
+      writes:
+        - example/build
+    safe_for_agent: true
+
+  verify:
+    description: Run the canonical Airflow Java SDK verification slice
+    category: verify
+    aggregate:
+      tasks:
+        - build
+        - docs
+        - example:install
+    safe_for_agent: true
+
+workflows:
+  default: verify
+  verify:
+    description: Canonical wrapper-owned Gradle setup and verification path for this repo slice
+    setup:
+      task: setup
+    run:
+      task: verify
+    notes: |
+      This contract slice covers the README front door: `./gradlew build`,
+      `./gradlew sdk:dokkaGenerate`, and `./gradlew :example:installDist`.
+      It also assumes the sibling `../task-sdk` checkout is present because the SDK build reads
+      `../task-sdk/src/airflow/sdk/execution_time/schema/schema.json`.
+
+agent:
+  posture: readiness_strict
+  entrypoint: setup
+  default_task: verify
+  safe_tasks:
+    - setup
+    - build
+    - docs
+    - example:install
+    - verify
+  verify_after_changes:
+    - verify
+  writable_paths:
+    - .gradle
+    - .kotlin
+    - build
+    - example/build
+    - sdk/build
+    - example/src
+    - sdk/src
+    - README.md
+    - adr
+    - dags
+  protected_paths:
+    - gradle/wrapper
+    - build.gradle.kts
+    - gradle.properties
+    - ota.yaml
+    - settings.gradle.kts
+  bootstrap:
+    ota:
+      note: Only install ota if it is missing and installation is approved.
+      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_GIT_REV=446dd438aae721af20e79461bfa6d8e2ec215b67 sh -s -- --from-git
+      powershell: $env:OTA_GIT_REV='446dd438aae721af20e79461bfa6d8e2ec215b67'; & ([scriptblock]::Create((irm https://dist.ota.run/install.ps1))) -FromGit
+  notes: |
+    Start with `ota doctor`, then `ota validate`, then `ota tasks --use`.
+    Use `ota up --workflow verify` when you want the declared setup plus verification path.
+    This repo currently needs the sibling `../task-sdk` checkout for successful SDK generation.
+
+metadata:
+  ota:
+    minimum_version: "1.6.21"
