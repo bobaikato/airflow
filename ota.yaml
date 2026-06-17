@@ -26,8 +26,10 @@ execution:
           - .uv-cache
 toolchains:
   python:
-    provider: uv
     version: '3.12'
+    fulfillment:
+      source: uv
+      mode: run
 tasks:
   setup:
     context: host
