@@ -31,25 +31,6 @@ toolchains:
       source: uv
       mode: run
 tasks:
-  setup:
-    context: host
-    category: setup
-    description: Ensure the pinned Python tooling is available.
-    run: python -m pip install --disable-pip-version-check -q uv
-    execution:
-      default_mode: native
-      modes:
-        native:
-          context: host
-          run: python -m pip install --disable-pip-version-check -q uv
-        container:
-          context: app
-          run: python -m pip install --disable-pip-version-check -q uv
-    effects:
-      network: true
-      network_kind: dependency_hydration
-    notes: Install uv if needed for this contract slice.
-    internal: true
   test:
     context: host
     category: test
@@ -64,8 +45,6 @@ tasks:
         container:
           context: app
           run: python -m compileall -q airflow-core/src/airflow
-    depends_on:
-      - setup
     safe_for_agent: true
     notes: This slice validates source-level Python compatibility without full extras hydration.
   verify:
@@ -80,15 +59,13 @@ workflows:
   default: verify
   verify:
     description: Canonical Airflow verification path for this contract slice.
-    setup:
-      task: setup
     run:
       task: verify
     notes: |
-      Use `ota up --workflow verify` to run the declared setup plus baseline verification sequence.
+      Use `ota up --workflow verify` to run the baseline verification sequence for this slice.
 agent:
   posture: readiness_strict
-  entrypoint: setup
+  entrypoint: verify
   default_task: verify
   safe_tasks:
   - test
@@ -132,8 +109,8 @@ agent:
   bootstrap:
     ota:
       note: Only install ota if it is missing and installation is approved.
-      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_GIT_REV=08c270351c9870c82a39899161388bb250ad23c4 sh -s -- --from-git
-      powershell: $env:OTA_GIT_REV='08c270351c9870c82a39899161388bb250ad23c4'; & ([scriptblock]::Create((irm https://dist.ota.run/install.ps1))) -FromGit
+      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.21 sh
+      powershell: $env:OTA_VERSION='v1.6.21'; irm https://dist.ota.run/install.ps1 | iex
   notes: |
     Use `ota workflows` to inspect declared workflow paths.
     Use `ota up --workflow verify` when you want setup and verification through one declared path.
