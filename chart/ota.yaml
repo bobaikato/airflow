@@ -1,0 +1,179 @@
+#
+#                █████
+#               ░░███
+#       ██████  ███████    ██████
+#      ███░░███░░░███░    ░░░░░███
+#     ░███ ░███  ░███      ███████
+#     ░███ ░███  ░███ ███ ███░░███
+#     ░░██████   ░░█████ ░░████████
+#      ░░░░░░     ░░░░░   ░░░░░░░░
+#
+#   Copyright (C) 2026 — 2026, Ota. All Rights Reserved.
+#
+#   DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+#
+#   Licensed under the Apache License, Version 2.0. See LICENSE for the full license text.
+#   You may not use this file except in compliance with that License.
+#   Unless required by applicable law or agreed to in writing, software distributed under the
+#   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+#   either express or implied. See the License for the specific language governing permissions
+#   and limitations under the License.
+#
+#   If you need additional information or have any questions, please email: os@ota.run
+
+version: 1
+
+project:
+  name: airflow-chart
+  description: Helm chart readiness slice covering dependency hydration, chart lint/render, and standalone KEDA overlay rendering for Apache Airflow
+  type: service
+
+tasks:
+  setup:
+    description: Hydrate Helm chart dependencies declared in Chart.yaml
+    category: setup
+    prepare:
+      kind: dependency_hydration
+      medium: package_dependencies
+      source:
+        kind: helm
+        cwd: .
+    requirements:
+      tools:
+        helm: "*"
+    effects:
+      writes:
+        - charts
+      network: true
+      network_kind: dependency_hydration
+    safe_for_agent: true
+
+  lint:
+    description: Run Helm lint against the chart and its schema-backed values
+    category: verify
+    adapter_inputs:
+      helm:
+        cwd: .
+        chart: .
+    command:
+      exe: helm
+      args:
+        - lint
+    depends_on:
+      - setup
+    requirements:
+      tools:
+        helm: "*"
+    safe_for_agent: true
+
+  render:
+    description: Render the chart locally with the default values and Kubernetes compatibility target
+    category: verify
+    adapter_inputs:
+      helm:
+        cwd: .
+        chart: .
+        release_name: release-name
+        namespace: default
+    command:
+      exe: helm
+      args:
+        - template
+        - --values
+        - values.yaml
+        - --kube-version
+        - "1.30"
+    depends_on:
+      - setup
+    requirements:
+      tools:
+        helm: "*"
+    safe_for_agent: true
+    notes: |
+      This mirrors the repo's Pythonic helm test infrastructure, which renders the chart through
+      `helm template` before asserting on the generated Kubernetes objects.
+
+  render:overlay:keda:
+    description: Render the standalone KEDA overlay without applying it to a cluster
+    category: verify
+    command:
+      exe: kubectl
+      args:
+        - kustomize
+        - kustomize-overlays/keda
+    requirements:
+      tools:
+        kubectl: "*"
+    safe_for_agent: true
+    notes: |
+      This host proves the standalone overlay path through `kubectl kustomize`, which embeds the
+      same Kustomize render surface without claiming live cluster apply ownership.
+
+  verify:
+    description: Run the canonical Airflow chart readiness slice
+    category: verify
+    aggregate:
+      tasks:
+        - lint
+        - render
+        - render:overlay:keda
+    safe_for_agent: true
+
+workflows:
+  default: verify
+
+  verify:
+    description: Canonical Helm chart verification path for dependency hydration, chart rendering, and overlay rendering
+    setup:
+      task: setup
+    run:
+      task: verify
+    notes: |
+      This slice stays deliberately narrow and truthful: it proves Helm dependency hydration,
+      Helm lint/render, and Kustomize overlay rendering. It does not claim live Kubernetes
+      apply/runtime proof because this sub-repo does not ship a self-contained cluster path.
+
+agent:
+  posture: readiness_strict
+  entrypoint: setup
+  default_task: verify
+  safe_tasks:
+    - setup
+    - lint
+    - render
+    - render:overlay:keda
+    - verify
+  verify_after_changes:
+    - verify
+  writable_paths:
+    - charts
+    - docs
+    - files
+    - kustomize-overlays
+    - templates
+    - tests
+    - values.yaml
+    - values.schema.json
+    - values_schema.schema.json
+    - Chart.yaml
+    - README.md
+    - newsfragments
+  protected_paths:
+    - .pre-commit-config.yaml
+    - LICENSE
+    - NOTICE
+    - Chart.lock
+    - ota.yaml
+  bootstrap:
+    ota:
+      note: Only install ota if it is missing and installation is approved.
+      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.21 sh
+      powershell: $env:OTA_VERSION='v1.6.21'; irm https://dist.ota.run/install.ps1 | iex
+  notes: |
+    Start with `ota doctor`, then `ota validate`, then `ota tasks --use`.
+    Use `ota up --workflow verify` when you want the declared setup plus verification path for
+    this Helm chart slice.
+
+metadata:
+  ota:
+    minimum_version: "1.6.21"

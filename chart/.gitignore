@@ -8,3 +8,6 @@ repository
 # Never check in tmpcharts
 tmpcharts
 *.iml
+.ota/state/
+.ota/receipts/
+.ota/proof/
