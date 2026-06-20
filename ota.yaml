@@ -35,16 +35,34 @@ tasks:
     context: host
     category: test
     description: Compile Airflow core sources to validate parser/runtime compatibility.
-    run: python -m compileall -q airflow-core/src/airflow
+    command:
+      exe: python
+      args:
+        - -m
+        - compileall
+        - -q
+        - airflow-core/src/airflow
     execution:
       default_mode: native
       modes:
         native:
           context: host
-          run: python -m compileall -q airflow-core/src/airflow
+          command:
+            exe: python
+            args:
+              - -m
+              - compileall
+              - -q
+              - airflow-core/src/airflow
         container:
           context: app
-          run: python -m compileall -q airflow-core/src/airflow
+          command:
+            exe: python
+            args:
+              - -m
+              - compileall
+              - -q
+              - airflow-core/src/airflow
     safe_for_agent: true
     notes: This slice validates source-level Python compatibility without full extras hydration.
   verify:
