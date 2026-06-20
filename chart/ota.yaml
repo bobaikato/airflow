@@ -28,6 +28,42 @@ project:
   description: Helm chart readiness slice covering dependency hydration, chart lint/render, and standalone KEDA overlay rendering for Apache Airflow
   type: service
 
+tools:
+  helm:
+    version: ">=3.8"
+    platforms:
+      linux:
+        acquisition:
+          provider: apt
+          package: helm
+      macos:
+        acquisition:
+          provider: brew
+          package: helm
+          source_config:
+            tap_name: homebrew/core
+      windows:
+        acquisition:
+          provider: winget
+          package: Helm.Helm
+  kubectl:
+    version: "*"
+    platforms:
+      linux:
+        acquisition:
+          provider: apt
+          package: kubectl
+      macos:
+        acquisition:
+          provider: brew
+          package: kubectl
+          source_config:
+            tap_name: homebrew/core
+      windows:
+        acquisition:
+          provider: winget
+          package: Kubernetes.kubectl
+
 tasks:
   setup:
     description: Hydrate Helm chart dependencies declared in Chart.yaml

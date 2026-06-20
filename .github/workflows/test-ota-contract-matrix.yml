@@ -99,10 +99,6 @@ jobs:
         with:
           ruby-version: "3.3"
 
-      - name: Setup Helm
-        if: ${{ matrix.contract_path == 'chart' }}
-        uses: azure/setup-helm@v4
-
       - name: Install ota from source
         uses: ota-run/ota/.github/actions/install-ota-from-source@5bcf0509df09b2ecbbd0c8d6bc111e73b82a0c7f
         with:
